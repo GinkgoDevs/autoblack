@@ -1,10 +1,10 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { formatCurrencyFromCents } from "@/lib/format";
 
 type EmailResult = {
   ok: boolean;
   skipped?: boolean;
-  resendId?: string;
+  messageId?: string;
   error?: string;
 };
 
@@ -29,18 +29,28 @@ type PurchaseRejectedEmail = {
   adminNotes?: string | null;
 };
 
-function getEmailConfig() {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
+function getGmailConfig() {
+  const user = process.env.GMAIL_USER;
+  const appPassword = process.env.GMAIL_APP_PASSWORD;
 
-  if (!apiKey || !from) {
+  if (!user || !appPassword) {
     return null;
   }
 
-  return {
-    resend: new Resend(apiKey),
-    from,
-  };
+  const from =
+    process.env.GMAIL_FROM_EMAIL || `Autoblack <${user}>`;
+
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user,
+      pass: appPassword.replace(/\s/g, ""),
+    },
+  });
+
+  return { transporter, from };
 }
 
 async function sendEmail({
@@ -54,18 +64,18 @@ async function sendEmail({
   html: string;
   text: string;
 }): Promise<EmailResult> {
-  const config = getEmailConfig();
+  const config = getGmailConfig();
 
   if (!config) {
     return {
       ok: false,
       skipped: true,
-      error: "Resend no está configurado",
+      error: "Gmail SMTP no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)",
     };
   }
 
   try {
-    const { data, error } = await config.resend.emails.send({
+    const info = await config.transporter.sendMail({
       from: config.from,
       to,
       subject,
@@ -73,16 +83,9 @@ async function sendEmail({
       text,
     });
 
-    if (error) {
-      return {
-        ok: false,
-        error: error.message,
-      };
-    }
-
     return {
       ok: true,
-      resendId: data?.id,
+      messageId: info.messageId,
     };
   } catch (error) {
     return {

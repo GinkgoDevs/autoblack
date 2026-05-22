@@ -53,7 +53,7 @@ export async function POST(request: Request, context: RouteContext) {
       event_type: "purchase_rejected",
       status: emailResult.ok ? "sent" : "failed",
       subject: `Necesitamos revisar tu comprobante - ${purchase.purchase_code}`,
-      resend_id: emailResult.resendId ?? null,
+      resend_id: emailResult.messageId ?? null,
       error_message: emailResult.error ?? null,
       sent_at: emailResult.ok ? new Date().toISOString() : null,
     });
